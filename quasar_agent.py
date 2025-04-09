@@ -11,7 +11,8 @@ class MultiModelAgent:
     # Available models
     AVAILABLE_MODELS = {
         "quasar": "openrouter/quasar-alpha",
-        "deepseek": "deepseek-ai/deepseek-coder-instruct-34b"
+        "deepseek": "deepseek/deepseek-chat-v3-0324:free",
+        "gemini": "google/gemini-2.5-pro-exp-03-25:free"
     }
     
     def __init__(self, default_model="quasar", site_url=None, site_name=None):
@@ -51,7 +52,7 @@ class MultiModelAgent:
         print(f"MultiModelAgent initialized. Available models: {', '.join(self.AVAILABLE_MODELS.keys())}")
         print(f"Default model: {self.default_model} ({self.AVAILABLE_MODELS[self.default_model]})")
 
-    def generate_response(self, prompt, model=None, max_length=512, temperature=0.7, top_p=0.9):
+    def generate_response(self, prompt, model=None, max_length=2048, temperature=0.7, top_p=0.9):
         """
         Generate a response from the specified model via OpenRouter API.
 
@@ -103,7 +104,7 @@ class MultiModelAgent:
             print(f"Error calling OpenRouter API with model {model_identifier}: {e}")
             return f"Error from {model}: Could not get response from the model. Details: {e}"
 
-    def generate_multi_response(self, prompt, models=None, max_length=512, temperature=0.7, top_p=0.9):
+    def generate_multi_response(self, prompt, models=None, max_length=2048, temperature=0.7, top_p=0.9):
         """
         Generate responses from multiple models for the same prompt.
 
