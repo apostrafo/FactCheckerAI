@@ -39,44 +39,44 @@ def respond(message, history, model_choice):
         # Get response from a single model
         return agent.generate_response(message, model=model_choice)
 
+# Create a simpler Gradio interface to avoid schema issues
 with gr.Blocks(title="Multi-Model Chat Agent") as demo:
     gr.Markdown("# AI Chat Agent - Compare Models")
-    gr.Markdown("Chat with different AI models and compare their responses.")
     
     with gr.Row():
         with gr.Column(scale=3):
             chatbot = gr.Chatbot(height=600)
-            msg = gr.Textbox(
-                placeholder="Type your message here...",
-                container=False,
-                scale=7,
-            )
             with gr.Row():
+                msg = gr.Textbox(
+                    placeholder="Type your message here...",
+                    show_label=False
+                )
                 submit = gr.Button("Send")
-                clear = gr.Button("Clear")
+            clear = gr.Button("Clear")
         
         with gr.Column(scale=1):
+            model_choices = available_models + ["compare"]
+            default_model = "quasar" if "quasar" in available_models else (available_models[0] if available_models else "compare")
             model_selector = gr.Radio(
-                choices=available_models + ["compare"],
-                value="quasar" if "quasar" in available_models else (available_models[0] if available_models else "compare"),
-                label="Select Model",
-                info="Choose a single model or compare all models"
+                choices=model_choices,
+                value=default_model,
+                label="Select Model"
             )
             
-            gr.Markdown("### Available Models")
-            for model in available_models:
-                gr.Markdown(f"- **{model}**: {agent.AVAILABLE_MODELS[model] if agent else 'Unknown'}")
+            with gr.Accordion("Available Models", open=True):
+                for model in available_models:
+                    gr.Markdown(f"- **{model}**: {agent.AVAILABLE_MODELS[model] if agent else 'Unknown'}")
     
-    gr.Markdown("### Examples")
-    examples = gr.Examples(
-        examples=[
-            ["What are the key features of large language models?"],
-            ["Explain quantum computing to a 10-year-old"],
-            ["Write a short poem about artificial intelligence"],
-            ["What are some ethical considerations in AI development?"],
-        ],
-        inputs=msg,
-    )
+    with gr.Accordion("Examples", open=False):
+        gr.Examples(
+            examples=[
+                "What are the key features of large language models?",
+                "Explain quantum computing to a 10-year-old",
+                "Write a short poem about artificial intelligence",
+                "What are some ethical considerations in AI development?",
+            ],
+            inputs=msg
+        )
     
     def user(user_message, history):
         return "", history + [[user_message, None]]
@@ -101,4 +101,5 @@ with gr.Blocks(title="Multi-Model Chat Agent") as demo:
 if __name__ == "__main__":
     if agent is None:
         print("Agent initialization failed. Gradio UI will start but may not be functional.", file=sys.stderr)
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=False)  # Configured for Hugging Face Spaces 
+    # Updated launch parameters for Hugging Face Spaces
+    demo.launch(server_name="0.0.0.0", server_port=7860, share=True) 
