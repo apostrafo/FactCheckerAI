@@ -11,7 +11,7 @@ class MultiModelAgent:
     # Available models
     AVAILABLE_MODELS = {
         "quasar": "openrouter/quasar-alpha",
-        "deepseek": "openrouter/deepseek-coder"
+        "deepseek": "deepseek-ai/deepseek-coder-instruct-34b"
     }
     
     def __init__(self, default_model="quasar", site_url=None, site_name=None):
