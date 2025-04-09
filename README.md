@@ -1,3 +1,14 @@
+---
+title: FactCheckerAI
+emoji: 🔍
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: "4.44.1"
+app_file: app.py
+pinned: false
+---
+
 # Quasar Alpha Chat Agent (OpenRouter API)
 
 A chat interface for interacting with the `openrouter/quasar-alpha` language model via the OpenRouter API.
