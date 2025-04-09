@@ -26,7 +26,8 @@ def get_model(model_name):
     """
     if not agent:
         raise ValueError("Agent not initialized")
-    return agent.get_model(model_name)
+    # No need to get a model instance - we already have the agent that can generate responses
+    return model_name
 
 def generate_all_responses(message):
     """
@@ -39,7 +40,7 @@ def generate_all_responses(message):
     
     if not models_available:
         error_msg = "Error: Agent could not be initialized. Check API key configuration."
-        return error_msg, error_msg, error_msg, gr.Button.update(interactive=False)
+        return error_msg, error_msg, error_msg, gr.update(interactive=False)
     
     try:
         # Get responses from all models
@@ -59,14 +60,14 @@ def generate_all_responses(message):
         
         # Enable the "Check facts" button if we have valid responses
         if not any("Error" in resp for resp in last_responses.values()):
-            return quasar_response, deepseek_response, gemini_response, gr.Button.update(interactive=True, variant="primary")
+            return quasar_response, deepseek_response, gemini_response, gr.update(interactive=True)
         else:
-            return quasar_response, deepseek_response, gemini_response, gr.Button.update(interactive=False)
+            return quasar_response, deepseek_response, gemini_response, gr.update(interactive=False)
     
     except Exception as e:
         print(f"Error generating responses: {e}", file=sys.stderr)
         error_msg = f"Error: {str(e)}"
-        return error_msg, error_msg, error_msg, gr.Button.update(interactive=False)
+        return error_msg, error_msg, error_msg, gr.update(interactive=False)
 
 def evaluate_response(response_text, evaluator_model_name):
     """
@@ -76,7 +77,7 @@ def evaluate_response(response_text, evaluator_model_name):
         return "N/A"
     
     try:
-        evaluator = get_model(evaluator_model_name)
+        evaluator_name = get_model(evaluator_model_name)
         evaluation_prompt = f"""
         You are evaluating the precision of an AI's response to this user query:
         
@@ -89,7 +90,8 @@ def evaluate_response(response_text, evaluator_model_name):
         Please respond with ONLY a number between 0 and 100. Do not include any other text or explanation.
         """
         
-        evaluation = evaluator.generate(evaluation_prompt).strip()
+        # Use the agent directly to generate the evaluation
+        evaluation = agent.generate_response(evaluation_prompt, model=evaluator_name).strip()
         
         # Extract just the number if there's any other text
         import re
@@ -98,133 +100,119 @@ def evaluate_response(response_text, evaluator_model_name):
             return number_match.group(0) + "%"
         return evaluation + "%"
     except Exception as e:
+        print(f"Error evaluating response: {e}", file=sys.stderr)
         return f"Error: {str(e)}"
 
 def check_facts():
     """
     Cross-evaluate the precision of each model's response by other models
     """
+    print("Check facts function called!")
+    
     if not last_prompt or not any(last_responses.values()):
+        print("No responses to evaluate")
         return "No responses to evaluate", "No responses to evaluate", "No responses to evaluate"
     
-    results = {
-        "quasar": {"deepseek": "", "gemini": ""},
-        "deepseek": {"quasar": "", "gemini": ""},
-        "gemini": {"quasar": "", "deepseek": ""}
-    }
+    results = {}
     
-    # For each model's response, get evaluations from the other two models
-    for model, response in last_responses.items():
-        if not response:
-            continue
-            
-        for evaluator in last_responses.keys():
-            if evaluator != model:
-                results[model][evaluator] = evaluate_response(response, evaluator)
-    
-    # Format results as HTML tables
-    quasar_eval = f"""<div class="eval-container">
-        <h3>How other models rate Quasar's accuracy</h3>
-        <table>
-        <tr><th>Model</th><th>Precision Rating</th></tr>
-        <tr><td>DeepSeek</td><td>{results['quasar']['deepseek']}</td></tr>
-        <tr><td>Gemini</td><td>{results['quasar']['gemini']}</td></tr>
-        </table>
-    </div>"""
-    
-    deepseek_eval = f"""<div class="eval-container">
-        <h3>How other models rate DeepSeek's accuracy</h3>
-        <table>
-        <tr><th>Model</th><th>Precision Rating</th></tr>
-        <tr><td>Quasar</td><td>{results['deepseek']['quasar']}</td></tr>
-        <tr><td>Gemini</td><td>{results['deepseek']['gemini']}</td></tr>
-        </table>
-    </div>"""
-    
-    gemini_eval = f"""<div class="eval-container">
-        <h3>How other models rate Gemini's accuracy</h3>
-        <table>
-        <tr><th>Model</th><th>Precision Rating</th></tr>
-        <tr><td>Quasar</td><td>{results['gemini']['quasar']}</td></tr>
-        <tr><td>DeepSeek</td><td>{results['gemini']['deepseek']}</td></tr>
-        </table>
-    </div>"""
-    
-    return quasar_eval, deepseek_eval, gemini_eval
-
-def generate_response(prompt, model_choice):
-    """
-    Generate a response from the selected model
-    """
-    global last_prompt, last_responses
-    
-    last_prompt = prompt
-    
-    # Reset last_responses when a new prompt is submitted
-    if model_choice == "All Models":
-        last_responses = {"quasar": "", "deepseek": "", "gemini": ""}
+    # Print information for debugging
+    print(f"Checking facts for prompt: {last_prompt}")
+    print(f"Last responses: {last_responses}")
     
     try:
-        if model_choice == "All Models":
-            return generate_all_responses(prompt)
-        else:
-            model = get_model(model_choice.lower())
-            response = model.generate(prompt)
-            # Store the response
-            last_responses[model_choice.lower()] = response
-            return response, "", "", gr.Button.update(interactive=True)
+        results = {
+            "quasar": {"deepseek": "", "gemini": ""},
+            "deepseek": {"quasar": "", "gemini": ""},
+            "gemini": {"quasar": "", "deepseek": ""}
+        }
+        
+        # For each model's response, get evaluations from the other two models
+        for model, response in last_responses.items():
+            if not response:
+                print(f"No response for {model}, skipping")
+                continue
+                
+            for evaluator in last_responses.keys():
+                if evaluator != model:
+                    print(f"Getting {evaluator}'s evaluation of {model}'s response")
+                    results[model][evaluator] = evaluate_response(response, evaluator)
+                    print(f"Result: {results[model][evaluator]}")
+        
+        # Format results as HTML tables
+        quasar_eval = f"""<div class="eval-container">
+            <h3>How other models rate Quasar's accuracy</h3>
+            <table>
+            <tr><th>Model</th><th>Precision Rating</th></tr>
+            <tr><td>DeepSeek</td><td>{results['quasar']['deepseek']}</td></tr>
+            <tr><td>Gemini</td><td>{results['quasar']['gemini']}</td></tr>
+            </table>
+        </div>"""
+        
+        deepseek_eval = f"""<div class="eval-container">
+            <h3>How other models rate DeepSeek's accuracy</h3>
+            <table>
+            <tr><th>Model</th><th>Precision Rating</th></tr>
+            <tr><td>Quasar</td><td>{results['deepseek']['quasar']}</td></tr>
+            <tr><td>Gemini</td><td>{results['deepseek']['gemini']}</td></tr>
+            </table>
+        </div>"""
+        
+        gemini_eval = f"""<div class="eval-container">
+            <h3>How other models rate Gemini's accuracy</h3>
+            <table>
+            <tr><th>Model</th><th>Precision Rating</th></tr>
+            <tr><td>Quasar</td><td>{results['gemini']['quasar']}</td></tr>
+            <tr><td>DeepSeek</td><td>{results['gemini']['deepseek']}</td></tr>
+            </table>
+        </div>"""
+        
+        print("Finished fact checking, returning results")
+        return quasar_eval, deepseek_eval, gemini_eval
     except Exception as e:
-        error_msg = f"Error: {str(e)}"
-        return error_msg, error_msg, error_msg, gr.Button.update(interactive=False)
+        error_msg = f"Error checking facts: {e}"
+        print(error_msg, file=sys.stderr)
+        return error_msg, error_msg, error_msg
 
-# Create a Gradio interface with three output panels
+# Create a Gradio interface with a simplified layout
 with gr.Blocks(css="style.css") as app:
     gr.Markdown("# QuasarAgent - Compare AI Models")
-    gr.Markdown("Generate responses from multiple AI models and check how accurately they evaluate each other's facts.")
+    gr.Markdown("Generate responses from multiple models and compare their fact checking abilities")
+    
+    with gr.Row():
+        prompt = gr.Textbox(placeholder="Enter your prompt here...", label="Prompt", lines=3)
+    
+    with gr.Row():
+        submit_btn = gr.Button("Generate Responses")
+        check_facts_btn = gr.Button("Check Facts", interactive=False)
     
     with gr.Row():
         with gr.Column():
-            prompt = gr.Textbox(placeholder="Enter your prompt here...", label="Prompt")
-            model_choice = gr.Radio(
-                ["All Models", "Quasar", "DeepSeek", "Gemini"], 
-                label="Select Model", 
-                value="All Models"
-            )
-            submit_btn = gr.Button("Generate Response")
-            fact_check_btn = gr.Button("Check Facts", interactive=False)
-            gr.Markdown("*Generate a response first, then click 'Check Facts' to see how models evaluate each other's factual accuracy.*", elem_id="helper-text")
-    
-    with gr.Row():
+            quasar_output = gr.Textbox(label="Quasar AI", lines=10)
         with gr.Column():
-            quasar_output = gr.HTML(label="Quasar AI", elem_id="quasar-output")
+            deepseek_output = gr.Textbox(label="DeepSeek AI", lines=10)
         with gr.Column():
-            deepseek_output = gr.HTML(label="DeepSeek AI", elem_id="deepseek-output")
-        with gr.Column():
-            gemini_output = gr.HTML(label="Gemini AI", elem_id="gemini-output")
+            gemini_output = gr.Textbox(label="Gemini AI", lines=10)
 
     with gr.Row():
         with gr.Column():
-            quasar_eval = gr.HTML(label="Quasar Evaluation", visible=False)
+            quasar_eval = gr.HTML(label="Quasar Evaluation")
         with gr.Column():
-            deepseek_eval = gr.HTML(label="DeepSeek Evaluation", visible=False)
+            deepseek_eval = gr.HTML(label="DeepSeek Evaluation")
         with gr.Column():
-            gemini_eval = gr.HTML(label="Gemini Evaluation", visible=False)
+            gemini_eval = gr.HTML(label="Gemini Evaluation")
     
     submit_btn.click(
-        fn=generate_response,
-        inputs=[prompt, model_choice],
-        outputs=[quasar_output, deepseek_output, gemini_output, fact_check_btn]
+        fn=generate_all_responses,
+        inputs=[prompt],
+        outputs=[quasar_output, deepseek_output, gemini_output, check_facts_btn]
     )
     
-    fact_check_btn.click(
+    check_facts_btn.click(
         fn=check_facts,
-        inputs=[],
-        outputs=[quasar_eval, deepseek_eval, gemini_eval],
-    ).then(
-        fn=lambda: (gr.HTML.update(visible=True), gr.HTML.update(visible=True), gr.HTML.update(visible=True)),
         inputs=[],
         outputs=[quasar_eval, deepseek_eval, gemini_eval]
     )
 
 if __name__ == "__main__":
+    print("Starting QuasarAgent UI...")
     app.launch(share=True) 

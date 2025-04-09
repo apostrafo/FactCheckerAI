@@ -80,12 +80,7 @@ class MultiModelAgent:
         messages = [
             {
                 "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": prompt
-                    }
-                ]
+                "content": prompt
             }
         ]
 
