@@ -5,17 +5,24 @@ from dotenv import load_dotenv
 # Try to load environment variables from .env file, but don't fail if it doesn't exist
 load_dotenv(dotenv_path=".env", verbose=False)
 
-class QuasarChatAgent:
-    def __init__(self, model_name="openrouter/quasar-alpha", site_url=None, site_name=None):
+class MultiModelAgent:
+    """Agent that can interact with multiple LLM models via OpenRouter API."""
+    
+    # Available models
+    AVAILABLE_MODELS = {
+        "quasar": "openrouter/quasar-alpha",
+        "deepseek": "openrouter/deepseek-coder"
+    }
+    
+    def __init__(self, default_model="quasar", site_url=None, site_name=None):
         """
-        Initialize the Quasar Alpha chat agent via OpenRouter API.
+        Initialize the multi-model chat agent via OpenRouter API.
 
         Args:
-            model_name (str): OpenRouter model name
+            default_model (str): Default model identifier (from AVAILABLE_MODELS keys)
             site_url (str, optional): Your site URL for OpenRouter rankings.
             site_name (str, optional): Your site name for OpenRouter rankings.
         """
-        self.model_name = model_name
         self.api_key = os.getenv("OPENROUTER_API_KEY")
 
         if not self.api_key:
@@ -27,6 +34,13 @@ class QuasarChatAgent:
             api_key=self.api_key,
         )
 
+        # Set default model
+        if default_model in self.AVAILABLE_MODELS:
+            self.default_model = default_model
+        else:
+            self.default_model = "quasar"
+            print(f"Warning: Model '{default_model}' not found, using '{self.default_model}' instead.")
+        
         # Optional headers for OpenRouter ranking
         self.extra_headers = {}
         if site_url:
@@ -34,24 +48,34 @@ class QuasarChatAgent:
         if site_name:
             self.extra_headers["X-Title"] = site_name
 
-        print(f"QuasarChatAgent initialized for model: {self.model_name}")
+        print(f"MultiModelAgent initialized. Available models: {', '.join(self.AVAILABLE_MODELS.keys())}")
+        print(f"Default model: {self.default_model} ({self.AVAILABLE_MODELS[self.default_model]})")
 
-    def generate_response(self, prompt, max_length=512, temperature=0.7, top_p=0.9):
+    def generate_response(self, prompt, model=None, max_length=512, temperature=0.7, top_p=0.9):
         """
-        Generate a response from the model via OpenRouter API.
+        Generate a response from the specified model via OpenRouter API.
 
         Args:
             prompt (str): The input prompt
-            max_length (int): Maximum response length (Note: OpenRouter might have its own limits)
+            model (str, optional): Model identifier (from AVAILABLE_MODELS keys). 
+                                  If None, uses the default model.
+            max_length (int): Maximum response length 
             temperature (float): Sampling temperature
             top_p (float): Nucleus sampling parameter
 
         Returns:
             str: The generated response or an error message.
         """
-        # Note: The original example showed image input, but this implementation
-        # currently only supports text input for simplicity.
-        # TODO: Extend to handle multimodal input (text + images) if needed.
+        # Determine which model to use
+        if model is None:
+            model = self.default_model
+            
+        if model not in self.AVAILABLE_MODELS:
+            return f"Error: Model '{model}' not found. Available models: {', '.join(self.AVAILABLE_MODELS.keys())}"
+            
+        model_identifier = self.AVAILABLE_MODELS[model]
+            
+        # Format messages for the OpenRouter API
         messages = [
             {
                 "role": "user",
@@ -67,45 +91,105 @@ class QuasarChatAgent:
         try:
             completion = self.client.chat.completions.create(
                 extra_headers=self.extra_headers,
-                model=self.model_name,
+                model=model_identifier,
                 messages=messages,
-                max_tokens=max_length, # Note: API uses max_tokens, not max_length
+                max_tokens=max_length,
                 temperature=temperature,
                 top_p=top_p,
-                # Add other parameters as needed, e.g., stream=True for streaming
             )
             response = completion.choices[0].message.content
-            return response.strip() if response else "(No response from model)"
+            return response.strip() if response else f"({model}: No response)"
         except Exception as e:
-            print(f"Error calling OpenRouter API: {e}")
-            return f"Error: Could not get response from the model. Details: {e}"
+            print(f"Error calling OpenRouter API with model {model_identifier}: {e}")
+            return f"Error from {model}: Could not get response from the model. Details: {e}"
+
+    def generate_multi_response(self, prompt, models=None, max_length=512, temperature=0.7, top_p=0.9):
+        """
+        Generate responses from multiple models for the same prompt.
+
+        Args:
+            prompt (str): The input prompt
+            models (list, optional): List of model identifiers to query.
+                                    If None, uses all available models.
+            max_length (int): Maximum response length
+            temperature (float): Sampling temperature
+            top_p (float): Nucleus sampling parameter
+
+        Returns:
+            dict: Model names mapped to their responses
+        """
+        if models is None:
+            models = list(self.AVAILABLE_MODELS.keys())
+        
+        results = {}
+        for model in models:
+            response = self.generate_response(
+                prompt, 
+                model=model,
+                max_length=max_length,
+                temperature=temperature,
+                top_p=top_p
+            )
+            results[model] = response
+            
+        return results
 
     def chat(self):
         """
-        Start an interactive chat session with the model.
+        Start an interactive command-line chat session with the default model.
         """
-        print("Starting chat with Quasar Alpha (via OpenRouter). Type 'exit' to end.")
+        print(f"Starting chat with {self.default_model} model. Type 'exit' to end the conversation.")
+        print("Type '!model <name>' to switch models. Available models: " + ", ".join(self.AVAILABLE_MODELS.keys()))
+        print("Type '!compare' to see responses from all models.")
         print("=" * 50)
-
+        
+        current_model = self.default_model
+        compare_mode = False
+        
         while True:
             user_input = input("You: ")
-
+            
             if user_input.lower() in ["exit", "quit", "bye"]:
                 print("Goodbye!")
                 break
-
+                
             if not user_input:
                 continue
+                
+            # Handle commands
+            if user_input.startswith("!model "):
+                requested_model = user_input[7:].strip()
+                if requested_model in self.AVAILABLE_MODELS:
+                    current_model = requested_model
+                    compare_mode = False
+                    print(f"Switched to model: {current_model}")
+                else:
+                    print(f"Unknown model. Available models: {', '.join(self.AVAILABLE_MODELS.keys())}")
+                continue
+                
+            if user_input == "!compare":
+                compare_mode = not compare_mode
+                print(f"Compare mode {'enabled' if compare_mode else 'disabled'}")
+                continue
+            
+            # Generate response(s)
+            if compare_mode:
+                responses = self.generate_multi_response(user_input)
+                print("-" * 50)
+                for model_name, response in responses.items():
+                    print(f"{model_name.upper()}: {response}")
+                    print("-" * 50)
+            else:
+                response = self.generate_response(user_input, model=current_model)
+                print(f"{current_model.upper()}: {response}")
+                print("-" * 50)
 
-            response = self.generate_response(user_input)
-            print(f"Quasar Alpha: {response}")
-            print("-" * 50)
+# For backward compatibility
+QuasarChatAgent = MultiModelAgent
 
 if __name__ == "__main__":
-    # Example: Provide optional site URL and name
-    # agent = QuasarChatAgent(site_url="https://mysite.com", site_name="My Quasar App")
     try:
-        agent = QuasarChatAgent()
+        agent = MultiModelAgent()
         agent.chat()
     except ValueError as e:
         print(f"Initialization failed: {e}")

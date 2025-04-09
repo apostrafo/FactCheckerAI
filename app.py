@@ -1,58 +1,104 @@
 import gradio as gr
 import sys
-from quasar_agent import QuasarChatAgent
+from quasar_agent import MultiModelAgent
 
 # Attempt to initialize the agent
 try:
-    agent = QuasarChatAgent()
+    agent = MultiModelAgent()
+    available_models = list(agent.AVAILABLE_MODELS.keys())
 except ValueError as e:
     print(f"Error initializing agent: {e}", file=sys.stderr)
     print("Please ensure the OPENROUTER_API_KEY is set in your .env file.", file=sys.stderr)
-    # You might want to display an error in the Gradio UI as well
-    # or exit the application if the agent is critical.
-    agent = None # Set agent to None to handle it in the UI
+    agent = None
+    available_models = []
 
-def respond(message, history):
+def respond(message, history, model_choice):
     """
-    Generate a response using the Quasar Alpha model via OpenRouter.
+    Generate a response using the selected model or compare two models.
     
     Args:
         message: The user's message
         history: Chat history
+        model_choice: Selected model or "compare" for comparison
         
     Returns:
-        str: The model's response or an error message.
+        str: The model's response or error message.
     """
     if agent is None:
         return "Error: Agent could not be initialized. Check API key configuration."
     
-    # Basic history formatting (optional, adjust as needed)
-    # For more complex history management, you might need to process 
-    # the 'history' list and format it according to the API's requirements.
-    # prompt = f"Previous conversation:\n{history}\n\nUser message:\n{message}"
-    # For now, just send the latest message
-    return agent.generate_response(message)
+    if model_choice == "compare":
+        # Get responses from both models
+        responses = agent.generate_multi_response(message)
+        # Format a combined response with clearly marked sources
+        result = ""
+        for model_name, response in responses.items():
+            result += f"## {model_name.upper()}\n\n{response}\n\n"
+        return result
+    else:
+        # Get response from a single model
+        return agent.generate_response(message, model=model_choice)
 
-# Create the Gradio interface
-demo = gr.ChatInterface(
-    fn=respond,
-    title="Quasar Alpha Chat Agent",
-    description="Have a conversation with the Quasar Alpha language model.",
-    theme="default",
-    examples=[
-        "What are the key features of large language models?",
-        "Explain quantum computing to a 10-year-old",
-        "Write a short poem about artificial intelligence",
-        "What are some ethical considerations in AI development?",
-    ],
-    retry_btn=None,
-    undo_btn=None,
-    clear_btn="Clear",
-)
+with gr.Blocks(title="Multi-Model Chat Agent") as demo:
+    gr.Markdown("# AI Chat Agent - Compare Models")
+    gr.Markdown("Chat with different AI models and compare their responses.")
+    
+    with gr.Row():
+        with gr.Column(scale=3):
+            chatbot = gr.Chatbot(height=600)
+            msg = gr.Textbox(
+                placeholder="Type your message here...",
+                container=False,
+                scale=7,
+            )
+            with gr.Row():
+                submit = gr.Button("Send")
+                clear = gr.Button("Clear")
+        
+        with gr.Column(scale=1):
+            model_selector = gr.Radio(
+                choices=available_models + ["compare"],
+                value="quasar" if "quasar" in available_models else (available_models[0] if available_models else "compare"),
+                label="Select Model",
+                info="Choose a single model or compare all models"
+            )
+            
+            gr.Markdown("### Available Models")
+            for model in available_models:
+                gr.Markdown(f"- **{model}**: {agent.AVAILABLE_MODELS[model] if agent else 'Unknown'}")
+    
+    gr.Markdown("### Examples")
+    examples = gr.Examples(
+        examples=[
+            ["What are the key features of large language models?"],
+            ["Explain quantum computing to a 10-year-old"],
+            ["Write a short poem about artificial intelligence"],
+            ["What are some ethical considerations in AI development?"],
+        ],
+        inputs=msg,
+    )
+    
+    def user(user_message, history):
+        return "", history + [[user_message, None]]
+    
+    def bot(history, model_choice):
+        user_message = history[-1][0]
+        bot_message = respond(user_message, history, model_choice)
+        history[-1][1] = bot_message
+        return history
+    
+    def clear_chat():
+        return None
+    
+    submit.click(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+        bot, [chatbot, model_selector], [chatbot]
+    )
+    clear.click(clear_chat, None, chatbot)
+    msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+        bot, [chatbot, model_selector], [chatbot]
+    )
 
 if __name__ == "__main__":
     if agent is None:
         print("Agent initialization failed. Gradio UI will start but may not be functional.", file=sys.stderr)
-        # Optionally, prevent Gradio from launching if the agent is essential
-        # sys.exit(1)
     demo.launch(server_name="0.0.0.0", server_port=7860, share=False)  # Configured for Hugging Face Spaces 
