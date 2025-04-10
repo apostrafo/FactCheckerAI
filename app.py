@@ -5,18 +5,18 @@ from quasar_agent import MultiModelAgent
 
 # Attempt to initialize the agent
 try:
-    agent = MultiModelAgent()
+    agent = MultiModelAgent(default_model="quasar_alpha")
     models_available = True
-    model_names = list(agent.AVAILABLE_MODELS.keys())
+    model_names = ["quasar_alpha", "deepseek_chat_v3", "nemotron_ultra_253b"]
 except ValueError as e:
     print(f"Error initializing agent: {e}", file=sys.stderr)
     print("Please ensure the OPENROUTER_API_KEY is set in your .env file.", file=sys.stderr)
     agent = None
     models_available = False
-    model_names = ["quasar", "deepseek", "gemini"]
+    model_names = ["quasar_alpha", "deepseek_chat_v3", "nemotron_ultra_253b"]
 
 # Global variable to store the last responses from each model
-last_responses = {"quasar": "", "deepseek": "", "gemini": ""}
+last_responses = {"quasar_alpha": "", "deepseek_chat_v3": "", "nemotron_ultra_253b": ""}
 # Global variable to store the last user prompt
 last_prompt = ""
 
@@ -47,22 +47,22 @@ def generate_all_responses(message):
         responses = agent.generate_multi_response(message)
         
         # Return responses for each model (or error message if a model failed)
-        quasar_response = responses.get("quasar", "Error: Failed to get response from Quasar")
-        deepseek_response = responses.get("deepseek", "Error: Failed to get response from DeepSeek")
-        gemini_response = responses.get("gemini", "Error: Failed to get response from Gemini")
+        quasar_response = responses.get("quasar_alpha", "Error: Failed to get response from Quasar Alpha")
+        deepseek_response = responses.get("deepseek_chat_v3", "Error: Failed to get response from DeepSeek Chat v3")
+        nemotron_response = responses.get("nemotron_ultra_253b", "Error: Failed to get response from Nemotron Ultra 253B")
         
         # Store the responses for later fact-checking
         last_responses = {
-            "quasar": quasar_response,
-            "deepseek": deepseek_response,
-            "gemini": gemini_response
+            "quasar_alpha": quasar_response,
+            "deepseek_chat_v3": deepseek_response,
+            "nemotron_ultra_253b": nemotron_response
         }
         
         # Enable the "Check facts" button if we have valid responses
         if not any("Error" in resp for resp in last_responses.values()):
-            return quasar_response, deepseek_response, gemini_response, gr.update(interactive=True)
+            return quasar_response, deepseek_response, nemotron_response, gr.update(interactive=True)
         else:
-            return quasar_response, deepseek_response, gemini_response, gr.update(interactive=False)
+            return quasar_response, deepseek_response, nemotron_response, gr.update(interactive=False)
     
     except Exception as e:
         print(f"Error generating responses: {e}", file=sys.stderr)
@@ -121,53 +121,83 @@ def check_facts():
     
     try:
         results = {
-            "quasar": {"deepseek": "", "gemini": ""},
-            "deepseek": {"quasar": "", "gemini": ""},
-            "gemini": {"quasar": "", "deepseek": ""}
+            "quasar_alpha": {"deepseek_chat_v3": "", "nemotron_ultra_253b": ""},
+            "deepseek_chat_v3": {"quasar_alpha": "", "nemotron_ultra_253b": ""},
+            "nemotron_ultra_253b": {"quasar_alpha": "", "deepseek_chat_v3": ""}
         }
+        
+        # Check if any model had an error in its response
+        model_errors = {}
+        for model, response in last_responses.items():
+            if not response:
+                model_errors[model] = "No response received"
+            elif response.startswith("Error"):
+                model_errors[model] = response
         
         # For each model's response, get evaluations from the other two models
         for model, response in last_responses.items():
-            if not response:
-                print(f"No response for {model}, skipping")
+            if model in model_errors:
+                print(f"Skipping {model} due to error: {model_errors[model]}")
                 continue
                 
             for evaluator in last_responses.keys():
                 if evaluator != model:
-                    print(f"Getting {evaluator}'s evaluation of {model}'s response")
-                    results[model][evaluator] = evaluate_response(response, evaluator)
-                    print(f"Result: {results[model][evaluator]}")
+                    if evaluator in model_errors:
+                        results[model][evaluator] = f"Evaluator error: {model_errors[evaluator]}"
+                        print(f"Cannot use {evaluator} to evaluate {model}: {model_errors[evaluator]}")
+                    else:
+                        print(f"Getting {evaluator}'s evaluation of {model}'s response")
+                        results[model][evaluator] = evaluate_response(response, evaluator)
+                        print(f"Result: {results[model][evaluator]}")
         
         # Format results as HTML tables
-        quasar_eval = f"""<div class="eval-container">
-            <h3>How other models rate Quasar's accuracy</h3>
-            <table>
-            <tr><th>Model</th><th>Precision Rating</th></tr>
-            <tr><td>DeepSeek</td><td>{results['quasar']['deepseek']}</td></tr>
-            <tr><td>Gemini</td><td>{results['quasar']['gemini']}</td></tr>
-            </table>
-        </div>"""
+        if "quasar_alpha" in model_errors:
+            quasar_eval = f"""<div class="eval-container error">
+                <h3>Quasar Alpha model error</h3>
+                <p>{model_errors['quasar_alpha']}</p>
+            </div>"""
+        else:
+            quasar_eval = f"""<div class="eval-container">
+                <h3>How other models rate Quasar Alpha's accuracy</h3>
+                <table>
+                <tr><th>Model</th><th>Precision Rating</th></tr>
+                <tr><td>DeepSeek Chat v3</td><td>{results['quasar_alpha']['deepseek_chat_v3']}</td></tr>
+                <tr><td>Nemotron Ultra 253B</td><td>{results['quasar_alpha']['nemotron_ultra_253b']}</td></tr>
+                </table>
+            </div>"""
         
-        deepseek_eval = f"""<div class="eval-container">
-            <h3>How other models rate DeepSeek's accuracy</h3>
-            <table>
-            <tr><th>Model</th><th>Precision Rating</th></tr>
-            <tr><td>Quasar</td><td>{results['deepseek']['quasar']}</td></tr>
-            <tr><td>Gemini</td><td>{results['deepseek']['gemini']}</td></tr>
-            </table>
-        </div>"""
+        if "deepseek_chat_v3" in model_errors:
+            deepseek_eval = f"""<div class="eval-container error">
+                <h3>DeepSeek Chat v3 model error</h3>
+                <p>{model_errors['deepseek_chat_v3']}</p>
+            </div>"""
+        else:
+            deepseek_eval = f"""<div class="eval-container">
+                <h3>How other models rate DeepSeek Chat v3's accuracy</h3>
+                <table>
+                <tr><th>Model</th><th>Precision Rating</th></tr>
+                <tr><td>Quasar Alpha</td><td>{results['deepseek_chat_v3']['quasar_alpha']}</td></tr>
+                <tr><td>Nemotron Ultra 253B</td><td>{results['deepseek_chat_v3']['nemotron_ultra_253b']}</td></tr>
+                </table>
+            </div>"""
         
-        gemini_eval = f"""<div class="eval-container">
-            <h3>How other models rate Gemini's accuracy</h3>
-            <table>
-            <tr><th>Model</th><th>Precision Rating</th></tr>
-            <tr><td>Quasar</td><td>{results['gemini']['quasar']}</td></tr>
-            <tr><td>DeepSeek</td><td>{results['gemini']['deepseek']}</td></tr>
-            </table>
-        </div>"""
+        if "nemotron_ultra_253b" in model_errors:
+            nemotron_eval = f"""<div class="eval-container error">
+                <h3>Nemotron Ultra 253B model error</h3>
+                <p>{model_errors['nemotron_ultra_253b']}</p>
+            </div>"""
+        else:
+            nemotron_eval = f"""<div class="eval-container">
+                <h3>How other models rate Nemotron Ultra 253B's accuracy</h3>
+                <table>
+                <tr><th>Model</th><th>Precision Rating</th></tr>
+                <tr><td>Quasar Alpha</td><td>{results['nemotron_ultra_253b']['quasar_alpha']}</td></tr>
+                <tr><td>DeepSeek Chat v3</td><td>{results['nemotron_ultra_253b']['deepseek_chat_v3']}</td></tr>
+                </table>
+            </div>"""
         
         print("Finished fact checking, returning results")
-        return quasar_eval, deepseek_eval, gemini_eval
+        return quasar_eval, deepseek_eval, nemotron_eval
     except Exception as e:
         error_msg = f"Error checking facts: {e}"
         print(error_msg, file=sys.stderr)
@@ -187,30 +217,30 @@ with gr.Blocks(css="style.css") as app:
     
     with gr.Row():
         with gr.Column():
-            quasar_output = gr.Textbox(label="Quasar AI", lines=10)
+            quasar_output = gr.Textbox(label="Quasar Alpha", lines=10)
         with gr.Column():
-            deepseek_output = gr.Textbox(label="DeepSeek AI", lines=10)
+            deepseek_output = gr.Textbox(label="DeepSeek Chat v3", lines=10)
         with gr.Column():
-            gemini_output = gr.Textbox(label="Gemini AI", lines=10)
+            nemotron_output = gr.Textbox(label="Nemotron Ultra 253B", lines=10)
 
     with gr.Row():
         with gr.Column():
-            quasar_eval = gr.HTML(label="Quasar Evaluation")
+            quasar_eval = gr.HTML(label="Quasar Alpha Evaluation")
         with gr.Column():
-            deepseek_eval = gr.HTML(label="DeepSeek Evaluation")
+            deepseek_eval = gr.HTML(label="DeepSeek Chat v3 Evaluation")
         with gr.Column():
-            gemini_eval = gr.HTML(label="Gemini Evaluation")
+            nemotron_eval = gr.HTML(label="Nemotron Ultra 253B Evaluation")
     
     submit_btn.click(
         fn=generate_all_responses,
         inputs=[prompt],
-        outputs=[quasar_output, deepseek_output, gemini_output, check_facts_btn]
+        outputs=[quasar_output, deepseek_output, nemotron_output, check_facts_btn]
     )
     
     check_facts_btn.click(
         fn=check_facts,
         inputs=[],
-        outputs=[quasar_eval, deepseek_eval, gemini_eval]
+        outputs=[quasar_eval, deepseek_eval, nemotron_eval]
     )
 
 if __name__ == "__main__":

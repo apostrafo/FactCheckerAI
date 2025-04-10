@@ -10,9 +10,9 @@ class MultiModelAgent:
     
     # Available models
     AVAILABLE_MODELS = {
-        "quasar": "openrouter/quasar-alpha",
-        "deepseek": "deepseek/deepseek-chat-v3-0324:free",
-        "gemini": "google/gemini-2.5-pro-exp-03-25:free"
+        "quasar_alpha": "openrouter/quasar-alpha",
+        "deepseek_chat_v3": "deepseek/deepseek-chat-v3-0324:free",
+        "nemotron_ultra_253b": "nvidia/llama-3.1-nemotron-ultra-253b-v1:free"
     }
     
     def __init__(self, default_model="quasar", site_url=None, site_name=None):
@@ -93,6 +93,17 @@ class MultiModelAgent:
                 temperature=temperature,
                 top_p=top_p,
             )
+            
+            # Check if completion or its properties are None
+            if completion is None:
+                return f"Error from {model}: API returned no response"
+                
+            if not hasattr(completion, 'choices') or not completion.choices:
+                return f"Error from {model}: No choices in API response"
+                
+            if not hasattr(completion.choices[0], 'message') or completion.choices[0].message is None:
+                return f"Error from {model}: No message in API response"
+                
             response = completion.choices[0].message.content
             return response.strip() if response else f"({model}: No response)"
         except Exception as e:

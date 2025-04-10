@@ -80,6 +80,20 @@ button {
     margin-top: 15px;
 }
 
+.eval-container.error {
+    background-color: #ffebee;
+    border-left: 4px solid #f44336;
+}
+
+.eval-container.error h3 {
+    color: #d32f2f;
+}
+
+.eval-container.error p {
+    color: #c62828;
+    margin: 10px 0;
+}
+
 .eval-container h3 {
     margin-top: 0;
     color: #2c3e50;
