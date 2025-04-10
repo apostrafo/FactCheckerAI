@@ -205,7 +205,7 @@ def check_facts():
 
 # Create a Gradio interface with a simplified layout
 with gr.Blocks(css="style.css") as app:
-    gr.Markdown("# QuasarAgent - Compare AI Models")
+    gr.Markdown("# FactCheckerAI - Compare AI Models")
     gr.Markdown("Generate responses from multiple models and compare their fact checking abilities")
     
     with gr.Row():
