@@ -9,73 +9,99 @@ app_file: app.py
 pinned: false
 ---
 
-# Quasar Alpha Chat Agent (OpenRouter API)
+# QuasarAgent
 
-A chat interface for interacting with the `openrouter/quasar-alpha` language model via the OpenRouter API.
+QuasarAgent is a multi-model AI chat interface that allows users to compare responses from multiple LLM models through OpenRouter API.
 
 ## Features
 
-- Command-line chat interface
-- Web-based GUI via Gradio
-- Uses the OpenRouter API for inference
-- Configurable response parameters
-- Requires an OpenRouter API Key
+- Compare responses from multiple LLM models simultaneously
+- Dynamic model list pulled directly from OpenRouter API 
+- Rich model information display (context length, parameter count, release date)
+- Select different models for each of the 3 roles (Primary, Secondary, Evaluator)
+- Automatic fact-checking with cross-model evaluation
+- Responsive UI that works on mobile, tablet, and desktop
+- Modern, intuitive interface with Gradio
+- Docker-ready deployment
 
 ## Setup
 
+### Prerequisites
+
+- Python 3.9 or higher
+- Docker and Docker Compose (for containerized deployment)
+- OpenRouter API key
+
+### Installation
+
 1. Clone this repository:
-   ```
-   git clone https://github.com/yourusername/QuasarAgent.git
-   cd QuasarAgent
-   ```
-   **(Note: Replace the URL above with your actual repository URL if applicable)**
 
-2. Install the required dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
+```bash
+git clone https://github.com/yourusername/QuasarAgent.git
+cd QuasarAgent
+```
 
-3. Create a `.env` file in the project root directory (`QuasarAgent/`) and add your OpenRouter API key:
-   ```dotenv
-   OPENROUTER_API_KEY=your_openrouter_api_key_here
-   ```
-   Replace `your_openrouter_api_key_here` with your actual key.
+2. Create a virtual environment (optional but recommended):
+
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install required packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+4. Create a `.env` file with your OpenRouter API key:
+
+```bash
+echo "OPENROUTER_API_KEY=your_openrouter_api_key_here" > .env
+```
 
 ## Usage
 
-### Command-line Interface
+### Running locally
 
-Run the interactive chat in the terminal:
+```bash
+# On Linux/macOS
+./run-local.sh
 
-```
-python quasar_agent.py
-```
-
-### Web Interface
-
-Start the Gradio web interface:
-
-```
-python app.py
+# On Windows
+run-local.bat
 ```
 
-This will launch a local web server, and the interface will be available at http://localhost:7860. A public link will also be provided if `share=True` is enabled.
+### Running with Docker
 
-## Configuration
+```bash
+# On Linux/macOS
+./run-docker.sh
 
-You can customize the model's behavior by modifying the parameters in the `generate_response` method (`quasar_agent.py`):
+# On Windows
+run-docker.bat
+```
 
-- `max_tokens`: Maximum number of tokens in the generated response (Note: API uses `max_tokens`)
-- `temperature`: Controls randomness (higher = more random)
-- `top_p`: Controls diversity via nucleus sampling
+Then access the web interface at [http://localhost:7861](http://localhost:7861).
 
-You can also provide optional `site_url` and `site_name` parameters when initializing `QuasarChatAgent` in `quasar_agent.py` or `app.py` for OpenRouter ranking purposes.
+## Model Selection
 
-## Requirements
+QuasarAgent allows you to select different LLM models for 3 distinct roles:
 
-- Python 3.8+
-- An active OpenRouter API Key
+1. **Primary Model** - The main response generator
+2. **Secondary Model** - Used for comparison with the primary model's response
+3. **Evaluator Model** - Used for fact-checking and evaluating the accuracy of responses
+
+The application automatically fetches available models from OpenRouter API with their details such as context length, parameter count, and release date. The models list is dynamically updated whenever new models are added to OpenRouter. You can filter models based on your preferences and requirements.
+
+## How It Works
+
+1. Enter your question in the input field
+2. Select models for each role using the dropdown menus (with detailed model information)
+3. Click "Generate Responses" to get answers from all selected models
+4. Automatic fact-checking runs to evaluate the factual accuracy of responses
+5. Results are displayed in a separate tab for easy reference
 
 ## License
 
-This project is open-source and is provided under the MIT License. 
+MIT 

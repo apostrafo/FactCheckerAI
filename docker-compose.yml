@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  quasaragent:
+    build: .
+    ports:
+      - "7861:7861"
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    volumes:
+      - .:/app
+    restart: unless-stopped 
