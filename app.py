@@ -14,6 +14,13 @@ print(f"Python version: {sys.version}")
 print(f"Current directory: {os.getcwd()}")
 print(f"Files in current directory: {os.listdir('.')}")
 
+# Add memory info for debugging
+try:
+    import psutil
+    print(f"Available memory: {psutil.virtual_memory().available / (1024 * 1024):.2f} MB")
+except ImportError:
+    print("psutil not available for memory debugging")
+
 try:
     print("Attempting to import MultiModelAgent...")
     from quasar_agent import MultiModelAgent
@@ -434,74 +441,112 @@ def check_facts():
 def launch_interface():
     print("Launching Gradio interface...")
     
-    with gr.Blocks(css="style.css", theme=gr.themes.Soft()) as demo:
-        gr.Markdown("# AI Model Comparison")
-        
-        if not models_available:
-            gr.Markdown("⚠️ **WARNING:** Models could not be initialized. Check API key configuration.")
-        
-        with gr.Row():
-            # Column for inputs and controls
-            with gr.Column(scale=1):
-                prompt = gr.Textbox(
-                    placeholder="Enter your question here...", 
-                    label="Question",
-                    lines=4,
-                    container=True
-                )
-                
-                gr.Markdown("### Select Models to Compare")
-                
-                model1 = gr.Dropdown(
-                    choices=create_model_dropdown_choices(),
-                    value=None,
-                    label="Model 1",
-                    interactive=models_available,
-                    allow_custom_value=True
-                )
-                
-                model2 = gr.Dropdown(
-                    choices=create_model_dropdown_choices(),
-                    value=None,
-                    label="Model 2",
-                    interactive=models_available,
-                    allow_custom_value=True
-                )
-                
-                model3 = gr.Dropdown(
-                    choices=create_model_dropdown_choices(),
-                    value=None,
-                    label="Model 3",
-                    interactive=models_available,
-                    allow_custom_value=True
-                )
-                
-                with gr.Row():
-                    submit_btn = gr.Button("Generate & Compare", variant="primary", scale=3)
-                    clear_btn = gr.Button("Clear", variant="secondary", scale=1)
-
-        # Results container
-        with gr.Column():
-            results_html = gr.HTML(
-                "<div class='placeholder'>Results will appear here</div>"
-            )
-        
-        # Set up event handlers
-        submit_btn.click(
-            fn=generate_and_evaluate,
-            inputs=[prompt, model1, model2, model3],
-            outputs=[results_html],
-            show_progress=True
-        )
-        
-        clear_btn.click(
-            fn=lambda: "<div class='placeholder'>Results cleared</div>",
-            inputs=None,
-            outputs=[results_html]
-        )
+    print("Preparing to create Gradio Blocks...")
     
-    # Launch the interface
-    demo.launch(server_name="0.0.0.0", server_port=7861)
+    # Limit the number of models for performance
+    limited_models = available_models[:50] if len(available_models) > 50 else available_models
+    print(f"Limited to {len(limited_models)} models for performance")
+    
+    # Create model choices with a limited set
+    def create_limited_model_choices():
+        choices = []
+        for model_id in limited_models:
+            display_name = model_display_names.get(model_id, model_id)
+            choices.append((model_id, display_name))
+        return choices
+    
+    model_choices = create_limited_model_choices()
+    print(f"Created dropdown choices with {len(model_choices)} options")
+    
+    try:
+        with gr.Blocks(css="style.css", theme=gr.themes.Soft()) as demo:
+            print("Creating Gradio UI components...")
+            gr.Markdown("# AI Model Comparison")
+            
+            if not models_available:
+                gr.Markdown("⚠️ **WARNING:** Models could not be initialized. Check API key configuration.")
+            
+            with gr.Row():
+                # Column for inputs and controls
+                with gr.Column(scale=1):
+                    prompt = gr.Textbox(
+                        placeholder="Enter your question here...", 
+                        label="Question",
+                        lines=4,
+                        container=True
+                    )
+                    
+                    gr.Markdown("### Select Models to Compare")
+                    
+                    model1 = gr.Dropdown(
+                        choices=model_choices,
+                        value=None,
+                        label="Model 1",
+                        interactive=models_available,
+                        allow_custom_value=True
+                    )
+                    
+                    model2 = gr.Dropdown(
+                        choices=model_choices,
+                        value=None,
+                        label="Model 2",
+                        interactive=models_available,
+                        allow_custom_value=True
+                    )
+                    
+                    model3 = gr.Dropdown(
+                        choices=model_choices,
+                        value=None,
+                        label="Model 3",
+                        interactive=models_available,
+                        allow_custom_value=True
+                    )
+                    
+                    with gr.Row():
+                        submit_btn = gr.Button("Generate & Compare", variant="primary", scale=3)
+                        clear_btn = gr.Button("Clear", variant="secondary", scale=1)
+
+            # Results container
+            with gr.Column():
+                results_html = gr.HTML(
+                    "<div class='placeholder'>Results will appear here</div>"
+                )
+            
+            print("Setting up Gradio event handlers...")
+            # Set up event handlers
+            submit_btn.click(
+                fn=generate_and_evaluate,
+                inputs=[prompt, model1, model2, model3],
+                outputs=[results_html],
+                show_progress=True
+            )
+            
+            clear_btn.click(
+                fn=lambda: "<div class='placeholder'>Results cleared</div>",
+                inputs=None,
+                outputs=[results_html]
+            )
+            
+            print("UI setup complete, launching Gradio interface...")
+        
+        # Launch the interface
+        print("About to call demo.launch()...")
+        demo.launch(server_name="0.0.0.0", server_port=7861)
+        print("Gradio launch completed.")
+    except Exception as e:
+        print(f"ERROR launching Gradio interface: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        print("Attempting simplified interface as fallback...")
+        
+        # Create a simple interface as fallback
+        with gr.Interface(
+            fn=lambda txt: f"Simplified interface due to error: {txt}",
+            inputs="text",
+            outputs="text",
+            title="QuasarAgent Fallback Interface"
+        ) as simple_demo:
+            simple_demo.launch(server_name="0.0.0.0", server_port=7861)
 
 async def generate_and_evaluate_responses(prompt, selected_models):
     """
