@@ -454,23 +454,26 @@ def launch_interface():
                 
                 model1 = gr.Dropdown(
                     choices=create_model_dropdown_choices(),
-                    value=available_models[0] if available_models else None,
+                    value=None,
                     label="Model 1",
-                    interactive=models_available
+                    interactive=models_available,
+                    allow_custom_value=True
                 )
                 
                 model2 = gr.Dropdown(
                     choices=create_model_dropdown_choices(),
-                    value=available_models[1] if len(available_models) > 1 else None,
+                    value=None,
                     label="Model 2",
-                    interactive=models_available
+                    interactive=models_available,
+                    allow_custom_value=True
                 )
                 
                 model3 = gr.Dropdown(
                     choices=create_model_dropdown_choices(),
-                    value=available_models[2] if len(available_models) > 2 else None,
+                    value=None,
                     label="Model 3",
-                    interactive=models_available
+                    interactive=models_available,
+                    allow_custom_value=True
                 )
                 
                 with gr.Row():
